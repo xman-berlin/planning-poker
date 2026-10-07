@@ -44,7 +44,7 @@ function assert(condition, message) {
 }
 
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pp-smoke-'))
-const { httpServer, io } = createApp({ dataFile: path.join(dataDir, 'sessions.json') })
+const { httpServer, io, hub } = await createApp({ dataFile: path.join(dataDir, 'sessions.json') })
 await new Promise((resolve) => httpServer.listen(0, '127.0.0.1', resolve))
 const port = httpServer.address().port
 const annaId = 'anna-participant-id'
@@ -207,6 +207,7 @@ try {
   process.exitCode = 1
 } finally {
   io.disconnectSockets(true)
+  await hub.flush()
   await new Promise((resolve) => {
     httpServer.close(() => resolve())
     setTimeout(resolve, 500)

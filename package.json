@@ -10,7 +10,7 @@
     "dev": "concurrently -n web,api -c cyan,green \"vite --host 127.0.0.1 --port 5174\" \"node --watch server/index.js\"",
     "build": "vite build",
     "start": "npm run build && node server/index.js",
-    "test": "node --test src/shared/*.test.js server/persist.test.js",
+    "test": "node --test src/shared/*.test.js server/*.test.js",
     "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
@@ -21,6 +21,7 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.1",
+    "redis": "^5.12.1",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1"
   },

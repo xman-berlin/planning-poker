@@ -1,5 +1,38 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { createClient } from 'redis'
+
+export const REDIS_SESSIONS_KEY = 'planungspoker:sessions'
+
+export function selectSessionBackend(options = {}, env = process.env) {
+  const fileProvided = Object.prototype.hasOwnProperty.call(options, 'dataFile')
+  const redisProvided = Object.prototype.hasOwnProperty.call(options, 'redisUrl')
+  const redisUrl = String((redisProvided ? options.redisUrl : fileProvided ? '' : env.REDIS_URL) || '').trim()
+  if (redisUrl) return { kind: 'redis', redisUrl }
+  const dataFile = fileProvided ? options.dataFile : options.defaultDataFile
+  if (!dataFile) return { kind: 'none' }
+  return { kind: 'file', dataFile }
+}
+
+export async function resolveSessionStore(options = {}, env = process.env) {
+  if (Object.prototype.hasOwnProperty.call(options, 'store')) return options.store
+  const choice = selectSessionBackend(options, env)
+  if (choice.kind === 'redis') return openRedisStore(choice.redisUrl)
+  if (choice.kind === 'file') return openSessionStore(choice.dataFile)
+  return null
+}
+
+export function encodeSessions(sessions) {
+  return JSON.stringify({ version: 1, sessions }, null, 2)
+}
+
+export function decodeSessions(raw) {
+  const parsed = JSON.parse(raw)
+  if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.sessions)) {
+    throw new Error('unerwartetes Format')
+  }
+  return parsed.sessions
+}
 
 export function openSessionStore(filePath) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
@@ -10,11 +43,7 @@ export function openSessionStore(filePath) {
     try {
       raw = fs.readFileSync(filePath, 'utf8')
       if (!raw.trim()) return []
-      const parsed = JSON.parse(raw)
-      if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.sessions)) {
-        throw new Error('unerwartetes Format')
-      }
-      return parsed.sessions
+      return decodeSessions(raw)
     } catch (error) {
       console.error(`sessions.json unlesbar (${error.message}). Starte ohne diese Datei.`)
       try {
@@ -27,13 +56,69 @@ export function openSessionStore(filePath) {
   }
 
   function write(sessions) {
-    const payload = JSON.stringify({ version: 1, sessions }, null, 2)
+    const payload = encodeSessions(sessions)
     const tmp = `${filePath}.${process.pid}.tmp`
     fs.writeFileSync(tmp, payload)
     fs.renameSync(tmp, filePath)
   }
 
-  return { read, write, filePath }
+  return {
+    kind: 'file',
+    filePath,
+    read: async () => read(),
+    write: async (sessions) => write(sessions),
+    async close() {},
+  }
+}
+
+export function createRedisSessionStore(client, { key = REDIS_SESSIONS_KEY } = {}) {
+  let closed = false
+
+  return {
+    kind: 'redis',
+    key,
+    async read() {
+      const raw = await client.get(key)
+      if (raw == null || !String(raw).trim()) return []
+      try {
+        return decodeSessions(raw)
+      } catch (error) {
+        console.error(`Redis-Sessions unlesbar (${error.message}). Starte ohne diesen Stand.`)
+        try {
+          await client.set(`${key}:broken`, raw)
+        } catch (copyError) {
+          console.error('Konnte den defekten Stand nicht beiseite legen:', copyError.message)
+        }
+        return []
+      }
+    },
+    async write(sessions) {
+      await client.set(key, encodeSessions(sessions))
+    },
+    async close() {
+      if (closed) return
+      closed = true
+      if (typeof client.quit !== 'function' || client.isOpen === false) return
+      await client.quit()
+    },
+  }
+}
+
+export async function openRedisStore(redisUrl, options = {}) {
+  const client = createClient({
+    url: redisUrl,
+    socket: {
+      connectTimeout: 10_000,
+      reconnectStrategy(retries) {
+        return Math.min(200 * 2 ** Math.min(retries, 5), 5_000)
+      },
+    },
+  })
+  client.on('error', (error) => {
+    console.error('Redis:', error.message)
+  })
+  await client.connect()
+  return createRedisSessionStore(client, options)
 }
 
 export function serializeSession(session) {
