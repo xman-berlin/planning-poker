@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Planungspoker">
+  <rect width="32" height="32" rx="8" fill="#0f6e64"/>
+  <rect x="8" y="4.5" width="16" height="23" rx="2.5" fill="#fffdf9"/>
+  <rect x="9.2" y="5.7" width="13.6" height="20.6" rx="1.6" fill="none" stroke="#0f6e64" stroke-opacity="0.35"/>
+  <text x="16" y="20.5" text-anchor="middle" font-family="Georgia, serif" font-size="13" font-weight="700" fill="#0f6e64">½</text>
+</svg>
