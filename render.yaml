@@ -1,0 +1,28 @@
+# Planungspoker on Render's free plan: one Node web service plus Key Value.
+# Free Key Value does not persist to disk. See README, "Deployment auf Render".
+services:
+  - type: web
+    name: planning-poker
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: node server/index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: REDIS_URL
+        fromService:
+          name: planning-poker-sessions
+          type: keyvalue
+          property: connectionString
+
+  - type: keyvalue
+    name: planning-poker-sessions
+    plan: free
+    region: frankfurt
+    # Internal network only. The web service in Frankfurt uses the private URL.
+    ipAllowList: []
+    # Fail writes instead of dropping the session document when memory is full.
+    maxmemoryPolicy: noeviction

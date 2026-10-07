@@ -2,7 +2,7 @@ import { findCard, getDeck, publicDeck } from '../src/shared/decks.js'
 import { formatStamp } from '../src/shared/format.js'
 import { createSessionId, isParticipantId, normalizeSessionId } from '../src/shared/ids.js'
 import { highlightFor, summarize } from '../src/shared/stats.js'
-import { hydrateSession, openSessionStore, serializeSession } from './persist.js'
+import { hydrateSession, serializeSession } from './persist.js'
 
 const MAX_SESSIONS = 200
 const MAX_PARTICIPANTS = 30
@@ -46,18 +46,28 @@ function voteLabel(deckId, value) {
   return card?.label || value
 }
 
-export function createHub(io, options = {}) {
-  const store = options.dataFile ? openSessionStore(options.dataFile) : null
+export async function createHub(io, options = {}) {
+  const store = options.store || null
   const sessions = new Map()
   const socketIndex = new Map()
+  let writeChain = Promise.resolve()
 
   function persist() {
     if (!store) return
+    let snapshot
     try {
-      store.write([...sessions.values()].map(serializeSession))
+      snapshot = JSON.parse(JSON.stringify([...sessions.values()].map(serializeSession)))
     } catch (error) {
       console.error('Session konnte nicht gespeichert werden:', error)
+      return
     }
+    writeChain = writeChain.then(() => store.write(snapshot)).catch((error) => {
+      console.error('Session konnte nicht gespeichert werden:', error)
+    })
+  }
+
+  function flush() {
+    return writeChain
   }
 
   function destroySession(session) {
@@ -891,7 +901,8 @@ export function createHub(io, options = {}) {
 
   if (store) {
     let dirty = false
-    for (const raw of store.read()) {
+    const stored = await store.read()
+    for (const raw of stored) {
       if (!raw?.id || typeof raw.id !== 'string') continue
       const session = hydrateSession(raw)
       if (session.timer.running) {
@@ -907,13 +918,18 @@ export function createHub(io, options = {}) {
       }
       sessions.set(session.id, session)
     }
-    if (dirty) persist()
+    if (dirty) {
+      persist()
+      await flush()
+    }
   }
 
   io.on('connection', onConnection)
 
   return {
     sessions,
+    storeKind: store?.kind || 'none',
+    flush,
     close() {
       for (const session of sessions.values()) clearTimeout(session.timerHandle)
     },

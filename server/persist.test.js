@@ -29,13 +29,14 @@ function emit(socket, event, payload) {
 }
 
 async function listen(dataFile) {
-  const { httpServer, io, hub } = createApp({ dataFile })
+  const { httpServer, io, hub } = await createApp({ dataFile })
   await new Promise((resolve) => httpServer.listen(0, '127.0.0.1', resolve))
   return { httpServer, io, hub, port: httpServer.address().port }
 }
 
-async function shutdown({ httpServer, io }) {
+async function shutdown({ httpServer, io, hub }) {
   io.disconnectSockets(true)
+  if (hub) await hub.flush()
   await new Promise((resolve) => httpServer.close(resolve))
 }
 
