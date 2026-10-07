@@ -2,7 +2,7 @@
 
 Planning-Poker-Prototyp für BRZ-Teams. Eine Node-Anwendung liefert die Oberfläche und die Live-Session. Kein Konto, keine API-Keys.
 
-**Live-App:** https://planning-poker.onrender.com
+**Live-App:** https://planning-poker-fnea.onrender.com
 
 ## Start
 
@@ -54,7 +54,7 @@ Ein Blueprint legt einen kostenlosen Web Service und eine kostenlose Key-Value-I
 1. Im Render-Dashboard **New → Blueprint** wählen und dieses Repository verbinden.
 2. Render liest `render.yaml` und legt `planning-poker` (Node, Free, Frankfurt) sowie Key Value `planning-poker-sessions` (Free, nur internes Netz) an.
 3. Nichts von Hand eintragen: `REDIS_URL` kommt aus der Key-Value-Instanz, `PORT` setzt Render selbst. Der Build ist `npm ci --include=dev && npm run build`, der Start nur `node server/index.js`.
-4. Health-Check ist `/api/health`. Danach die App öffnen. Session-Links sind `https://planning-poker.onrender.com/s/ABC123`.
+4. Health-Check ist `/api/health`. Danach die App öffnen. Session-Links sind `https://planning-poker-fnea.onrender.com/s/ABC123`.
 
 Der kostenlose Web Service schläft nach etwa 15 Minuten ohne Besucher ein; der erste Aufruf danach dauert ungefähr eine Minute. Sessions überleben diesen Schlaf und neue Deploys, weil sie in Key Value liegen. Die kostenlose Key-Value-Instanz speichert nur im Arbeitsspeicher: startet sie selbst neu, sind die Sessions weg. Ein bezahlter Key-Value-Plan mit Persistence **Journal + Snapshot** behält sie; `REDIS_URL` bleibt dieselbe. Pro Workspace ist nur eine kostenlose Key-Value-Instanz erlaubt. Ist der Name `planning-poker` schon vergeben, hängt Render einen Suffix an die Adresse — die Live-Zeile oben dann anpassen.
 
